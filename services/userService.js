@@ -5,34 +5,51 @@ import User from "../models/User.js";
 class UserService {
   // Register new user (role: user)
   async register(userData) {
-    const { name, email, password, phone, address } = userData;
+    console.log("Registration attempt with data:", userData);
+    
+    const { name, email, password, phone, address, role } = userData;
 
     // Check if user already exists
+    console.log("Checking if user exists with email:", email);
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
+      console.log("User already exists");
       throw new Error("User with this email already exists");
     }
 
     // Hash password
+    console.log("Hashing password");
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user
+    console.log("Creating user with data:", {
+      name,
+      email,
+      phone,
+      address,
+      role: "user"
+    });
+    
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
       phone,
       address,
-      role: "user",
+      role: "user", // Always normalize to "user" for consistency
     });
+    
+    console.log("User created successfully:", user.id);
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: "user" },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE }
+      { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
+    
+    console.log("Token generated successfully");
 
     return {
       user: {
@@ -68,9 +85,9 @@ class UserService {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: "user" },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE }
+      { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
 
     return {
@@ -151,7 +168,7 @@ class UserService {
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE }
+      { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
 
     return {
@@ -184,7 +201,7 @@ class UserService {
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE }
+      { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
 
     return {

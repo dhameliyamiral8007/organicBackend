@@ -3,10 +3,21 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { sequelize } from "./config/sequelize.js";
 import "./models/User.js";
+import "./models/Product.js";
+import "./models/Cart.js";
+import "./models/Order.js";
+import "./models/OrderItem.js";
+import "./models/Contact.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
+import checkoutRoutes from "./routes/checkoutRoutes.js";
+import adminCustomerRoutes from "./routes/adminCustomerRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
+import ensureUploadsDir from "./middleware/upload.js";
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +29,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(ensureUploadsDir);
 
 // Routes
 app.get("/", (req, res) => {
@@ -38,6 +50,11 @@ app.get("/health", (req, res) => {
 // API Routes
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
+app.use("/api/admin", adminCustomerRoutes);
+app.use("/api", productRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/checkout", checkoutRoutes);
+app.use("/api/contact", contactRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -64,7 +81,7 @@ async function startServer() {
     await sequelize.authenticate();
     console.log("✅ Connected to PostgreSQL via Sequelize");
 
-    await sequelize.sync();
+    await sequelize.sync({ alter: true });
     console.log("✅ Database models synchronized");
 
     // Start listening

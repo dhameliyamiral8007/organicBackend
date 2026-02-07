@@ -180,7 +180,7 @@ export const createProduct = async (req, res) => {
     if (req.files && req.files.length > 0) {
       try {
         uploadedImages = await uploadMultipleImages(
-          req.files.map((file) => file.path),
+          req.files.map((file) => file.buffer),
           "products"
         );
 
@@ -354,7 +354,7 @@ export const updateProduct = async (req, res) => {
     if (req.files && req.files.length > 0) {
       try {
         const newImages = await uploadMultipleImages(
-          req.files.map((file) => file.path),
+          req.files.map((file) => file.buffer),
           "products"
         );
 

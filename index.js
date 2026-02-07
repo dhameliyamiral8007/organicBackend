@@ -8,6 +8,8 @@ import "./models/Cart.js";
 import "./models/Order.js";
 import "./models/OrderItem.js";
 import "./models/Contact.js";
+import "./models/Media.js";
+import "./models/UserForm.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -17,6 +19,8 @@ import cartRoutes from "./routes/cartRoutes.js";
 import checkoutRoutes from "./routes/checkoutRoutes.js";
 import adminCustomerRoutes from "./routes/adminCustomerRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import mediaRoutes from "./routes/mediaRoutes.js";
+import userFormRoutes from "./routes/userFormRoutes.js";
 import ensureUploadsDir from "./middleware/upload.js";
 
 // Load environment variables
@@ -55,6 +59,8 @@ app.use("/api", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/media", mediaRoutes);
+app.use("/api/user-forms", userFormRoutes);
 
 // 404 handler
 app.use((req, res) => {

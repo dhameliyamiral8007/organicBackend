@@ -3,6 +3,7 @@ import OrderItem from "../models/OrderItem.js";
 import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import User from "../models/User.js";
+import CheckoutSession from "../models/CheckoutSession.js";
 import { body, validationResult } from "express-validator";
 import { sequelize } from "../config/sequelize.js";
 
@@ -72,32 +73,36 @@ export const validateCustomerDetails = [
 ];
 
 export const validateShippingAddress = [
+  body("address")
+    .notEmpty()
+    .withMessage("Address is required")
+    .isObject()
+    .withMessage("Address must be an object"),
+
   body("address.flatHouseNo")
-    .trim()
     .notEmpty()
-    .withMessage("Flat/House No. is required"),
-  
+    .withMessage("Flat/House No is required"),
+
   body("address.area")
-    .trim()
     .notEmpty()
-    .withMessage("Area/Sector/Village is required"),
-  
+    .withMessage("Area is required"),
+
   body("address.pincode")
-    .trim()
     .notEmpty()
-    .withMessage("Pincode is required")
-    .isPostalCode("IN")
-    .withMessage("Please provide a valid Indian pincode"),
-  
+    .withMessage("Pincode is required"),
+
   body("address.city")
-    .trim()
     .notEmpty()
     .withMessage("City is required"),
-  
+
   body("address.state")
-    .trim()
     .notEmpty()
     .withMessage("State is required"),
+
+  body("addressType")
+    .optional()
+    .isIn(["home", "office", "other"])
+    .withMessage("Invalid address type"),
 ];
 
 export const getCheckoutData = async (req, res) => {
@@ -242,12 +247,34 @@ export const savePhoneNumber = async (req, res) => {
     const { phone } = req.body;
     const userId = req.user.id;
 
+    // Find or create checkout session
+    let checkoutSession = await CheckoutSession.findOne({
+      where: { userId, isCompleted: false }
+    });
+
+    if (checkoutSession) {
+      // Update existing session
+      await checkoutSession.update({
+        phone,
+        currentStep: "customer-details",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset expiry
+      });
+    } else {
+      // Create new session
+      checkoutSession = await CheckoutSession.create({
+        userId,
+        phone,
+        currentStep: "customer-details",
+      });
+    }
+
     res.json({
       success: true,
       message: "Phone number saved successfully",
       data: {
         phone,
-        nextStep: "customer-details"
+        nextStep: "customer-details",
+        sessionId: checkoutSession.id
       },
     });
   } catch (error) {
@@ -275,6 +302,27 @@ export const saveCustomerDetails = async (req, res) => {
     const { firstName, lastName, email } = req.body;
     const userId = req.user.id;
 
+    // Find existing checkout session
+    let checkoutSession = await CheckoutSession.findOne({
+      where: { userId, isCompleted: false }
+    });
+
+    if (!checkoutSession) {
+      return res.status(400).json({
+        success: false,
+        message: "Please start with phone number first",
+      });
+    }
+
+    // Update session with customer details
+    await checkoutSession.update({
+      firstName,
+      lastName,
+      email,
+      currentStep: "shipping-address",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset expiry
+    });
+
     res.json({
       success: true,
       message: "Customer details saved successfully",
@@ -282,7 +330,8 @@ export const saveCustomerDetails = async (req, res) => {
         firstName,
         lastName,
         email,
-        nextStep: "shipping-address"
+        nextStep: "shipping-address",
+        sessionId: checkoutSession.id
       },
     });
   } catch (error) {
@@ -294,6 +343,71 @@ export const saveCustomerDetails = async (req, res) => {
     });
   }
 };
+
+// export const saveShippingAddress = async (req, res) => {
+//   try {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Validation errors",
+//         errors: errors.array(),
+//       });
+//     }
+
+//     const { address, addressType, billingAddress } = req.body;
+//     const userId = req.user.id;
+
+//     let checkoutSession = await CheckoutSession.findOne({
+//       where: { userId, isCompleted: false }
+//     });
+
+//     if (!checkoutSession) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Please complete previous steps first",
+//       });
+//     }
+
+//     // DataTypes.JSON છે એટલે object directly આપો — stringify નહીં
+//     const shippingAddressToSave = {
+//       ...(typeof address === 'string' ? { address } : address),
+//       type: addressType || "home",
+//     };
+
+//     const billingAddressToSave = billingAddress 
+//       ? (typeof billingAddress === 'string' ? { address: billingAddress } : billingAddress)
+//       : null;
+
+//     await checkoutSession.update({
+//       shippingAddress: shippingAddressToSave,  // ✅ plain object — Sequelize handle કરશે
+//       billingAddress: billingAddressToSave,
+//       currentStep: "payment",
+//       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+//     });
+
+//     res.json({
+//       success: true,
+//       message: "Shipping address saved successfully",
+//       data: {
+//         address: shippingAddressToSave,
+//         billingAddress: billingAddressToSave,
+//         nextStep: "payment",
+//         sessionId: checkoutSession.id,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Save shipping address error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to save shipping address",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+// Get user's orders
 
 export const saveShippingAddress = async (req, res) => {
   try {
@@ -309,17 +423,48 @@ export const saveShippingAddress = async (req, res) => {
     const { address, addressType } = req.body;
     const userId = req.user.id;
 
-    // You could save this to session or temporary storage
+    let parsedAddress = address;
+
+    if (typeof parsedAddress === "string") {
+      try {
+        parsedAddress = JSON.parse(parsedAddress);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid address format",
+        });
+      }
+    }
+
+    // 🔎 Find active checkout session
+    let session = await CheckoutSession.findOne({
+      where: {
+        userId,
+        isCompleted: false,
+      },
+    });
+
+    // 🆕 If no session exists, create one
+    if (!session) {
+      session = await CheckoutSession.create({
+        userId,
+        shippingAddress: parsedAddress,
+        currentStep: "payment",
+      });
+    } else {
+      // ✏️ Update existing session
+      await session.update({
+        shippingAddress: parsedAddress,
+        currentStep: "payment",
+      });
+    }
+
     res.json({
       success: true,
       message: "Shipping address saved successfully",
-      data: {
-        address: {
-          ...address,
-          type: addressType || "home",
-        },
-      },
+      data: session,
     });
+
   } catch (error) {
     console.error("Save shipping address error:", error);
     res.status(500).json({
@@ -330,22 +475,154 @@ export const saveShippingAddress = async (req, res) => {
   }
 };
 
+export const getUserOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 10, status } = req.query;
+
+    const whereClause = { userId };
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows: orders } = await Order.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "name", "featured_image", "category"],
+            },
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    // Parse JSON addresses for response
+    const formattedOrders = orders.map(order => {
+      let shippingAddress = order.shippingAddress;
+      let billingAddress = order.billingAddress;
+      
+      // Try to parse addresses if they're strings
+      try {
+        if (typeof shippingAddress === 'string') {
+          shippingAddress = JSON.parse(shippingAddress);
+        }
+      } catch (e) {
+        console.log("Failed to parse shippingAddress:", shippingAddress);
+        shippingAddress = { address: "Invalid address format" };
+      }
+      
+      try {
+        if (typeof billingAddress === 'string') {
+          billingAddress = JSON.parse(billingAddress);
+        }
+      } catch (e) {
+        console.log("Failed to parse billingAddress:", billingAddress);
+        billingAddress = { address: "Invalid address format" };
+      }
+      
+      return {
+        ...order.toJSON(),
+        shippingAddress,
+        billingAddress,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orders: formattedOrders,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(count / limit),
+          totalOrders: count,
+          limit: parseInt(limit),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get user orders error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user orders",
+      error: error.message,
+    });
+  }
+};
+
+// Get checkout session data
+export const getCheckoutSession = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const checkoutSession = await CheckoutSession.findOne({
+      where: { userId, isCompleted: false }
+    });
+
+    if (!checkoutSession) {
+      return res.status(404).json({
+        success: false,
+        message: "No active checkout session found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: checkoutSession,
+    });
+  } catch (error) {
+    console.error("Get checkout session error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get checkout session",
+      error: error.message,
+    });
+  }
+};
+
 export const placeOrder = async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
     const { 
-      firstName, 
-      lastName, 
-      email, 
-      phone,
-      shippingAddress,
-      billingAddress,
       paymentMethod = "cod",
       orderNotes 
     } = req.body;
     
     const userId = req.user.id;
+
+    // Get checkout session
+    const checkoutSession = await CheckoutSession.findOne({
+      where: { userId, isCompleted: false },
+      transaction,
+    });
+
+    if (!checkoutSession) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Please complete checkout steps first",
+      });
+    }
+
+    // Validate required fields
+    if (!checkoutSession.phone || !checkoutSession.firstName || !checkoutSession.email || !checkoutSession.shippingAddress) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Please complete all checkout steps",
+      });
+    }
 
     // Get user's cart
     const cart = await Cart.findAll({
@@ -368,7 +645,7 @@ export const placeOrder = async (req, res) => {
       });
     }
 
-    // Check product availability again
+    // Check product availability
     for (const cartItem of cart) {
       if (!cartItem.product.is_available) {
         await transaction.rollback();
@@ -389,12 +666,25 @@ export const placeOrder = async (req, res) => {
 
     // Calculate totals
     const subtotal = cart.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
-    const shippingCost = 0; // Free shipping
-    const tax = 0; // No tax for now
+    const shippingCost = 0;
+    const tax = 0;
     const totalAmount = subtotal + shippingCost + tax;
 
     // Generate order number
     const orderNumber = `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+    // Helper to safely serialize address
+    const serializeAddress = (addr) => {
+      if (!addr) return null;
+      if (typeof addr === 'object') return JSON.stringify(addr);
+      // Already a string - check if valid JSON
+      try {
+        JSON.parse(addr);
+        return addr; // Valid JSON string, use as-is
+      } catch {
+        return JSON.stringify({ address: addr }); // Plain string, wrap it
+      }
+    };
 
     // Create order
     const order = await Order.create({
@@ -405,16 +695,16 @@ export const placeOrder = async (req, res) => {
       shippingCost,
       tax,
       totalAmount,
-      firstName,
-      lastName,
-      email,
-      phone,
-      shippingAddress,
-      billingAddress: billingAddress || shippingAddress,
+      firstName: checkoutSession.firstName,
+      lastName: checkoutSession.lastName,
+      email: checkoutSession.email,
+      phone: checkoutSession.phone,
+shippingAddress: checkoutSession.shippingAddress,
+billingAddress: checkoutSession.billingAddress || checkoutSession.shippingAddress,
       paymentMethod,
-      paymentStatus: paymentMethod === "cod" ? "pending" : "pending",
+      paymentStatus: "pending",
       orderNotes,
-      estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }, { transaction });
 
     // Create order items and update product stock
@@ -434,7 +724,7 @@ export const placeOrder = async (req, res) => {
       await Product.update(
         { 
           stock: sequelize.literal(`stock - ${cartItem.quantity}`),
-          views: sequelize.literal('views + 1') // Increment views
+          views: sequelize.literal('views + 1')
         },
         { 
           where: { id: cartItem.productId },
@@ -448,6 +738,12 @@ export const placeOrder = async (req, res) => {
       where: { userId },
       transaction,
     });
+
+    // Mark checkout session as completed
+    await checkoutSession.update({
+      isCompleted: true,
+      currentStep: "completed",
+    }, { transaction });
 
     await transaction.commit();
 
@@ -483,7 +779,6 @@ export const placeOrder = async (req, res) => {
     });
   }
 };
-
 export const getOrderConfirmation = async (req, res) => {
   try {
     const { orderNumber } = req.params;

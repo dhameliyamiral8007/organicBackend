@@ -10,6 +10,7 @@ import "./models/OrderItem.js";
 import "./models/Contact.js";
 import "./models/Media.js";
 import "./models/UserForm.js";
+import "./models/CheckoutSession.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";

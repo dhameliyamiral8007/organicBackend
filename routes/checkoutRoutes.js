@@ -7,6 +7,8 @@ import {
   saveShippingAddress,
   placeOrder,
   getOrderConfirmation,
+  getCheckoutSession,
+  getUserOrders,
   validateCustomerInfo,
   validatePhoneOnly,
   validateCustomerDetails,
@@ -33,12 +35,14 @@ router.post("/step2/customer-details", validateCustomerDetails, saveCustomerDeta
 // Step 3: Save shipping address
 router.post("/step3/shipping-address", validateShippingAddress, saveShippingAddress);
 
-
-// Save shipping address (legacy)
-// router.post("/shipping-address", validateShippingAddress, saveShippingAddress);
-
 // Place order (Final step)
 router.post("/place-order", placeOrder);
+
+// Get checkout session data
+router.get("/session", getCheckoutSession);
+
+// Get user's orders
+router.get("/orders", getUserOrders);
 
 // Get order confirmation
 router.get("/confirmation/:orderNumber", getOrderConfirmation);

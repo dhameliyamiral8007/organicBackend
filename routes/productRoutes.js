@@ -34,7 +34,7 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 10,
+    files: 20,
   },
   fileFilter,
 });
@@ -42,7 +42,10 @@ const upload = multer({
 router.post(
   "/admin/products",
   authenticateAdmin,
-  upload.array("images", 10),
+  upload.fields([
+    { name: "images", maxCount: 10 },
+    { name: "variantImages", maxCount: 10 },
+  ]),
   validateProduct,
   createProduct
 );
@@ -60,7 +63,10 @@ router.get("/products/:id/related", getRelatedProducts);
 router.put(
   "/admin/products/:id",
   authenticateAdmin,
-  upload.array("images", 10),
+  upload.fields([
+    { name: "images", maxCount: 10 },
+    { name: "variantImages", maxCount: 10 },
+  ]),
   validateProduct,
   updateProduct
 );

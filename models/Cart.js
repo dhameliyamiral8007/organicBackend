@@ -43,6 +43,19 @@ const Cart = sequelize.define("Cart", {
     allowNull: false,
     comment: "Total price for this cart item (price * quantity)",
   },
+  variantIndex: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: "Selected variant index from product.variants",
+  },
+  variantLabel: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  variantImage: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   tableName: "cart",
@@ -57,9 +70,9 @@ const Cart = sequelize.define("Cart", {
       fields: ["product_id"],
     },
     {
-      name: "idx_cart_user_product",
+      name: "idx_cart_user_product_variant",
       unique: true,
-      fields: ["user_id", "product_id"],
+      fields: ["user_id", "product_id", "variant_index"],
     },
   ],
 });

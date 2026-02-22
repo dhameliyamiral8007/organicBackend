@@ -4,6 +4,7 @@ import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import User from "../models/User.js";
 import CheckoutSession from "../models/CheckoutSession.js";
+import Coupon from "../models/Coupon.js";
 import { body, validationResult } from "express-validator";
 import { sequelize } from "../config/sequelize.js";
 
@@ -596,7 +597,8 @@ export const placeOrder = async (req, res) => {
   try {
     const { 
       paymentMethod = "cod",
-      orderNotes 
+      orderNotes,
+      couponCode
     } = req.body;
     
     const userId = req.user.id;
@@ -631,7 +633,7 @@ export const placeOrder = async (req, res) => {
         {
           model: Product,
           as: "product",
-          attributes: ["id", "name", "featured_image", "category", "stock", "is_available"],
+          attributes: ["id", "name", "featured_image", "category", "stock", "is_available", "variants"],
         },
       ],
       transaction,
@@ -645,7 +647,7 @@ export const placeOrder = async (req, res) => {
       });
     }
 
-    // Check product availability
+    // Check product/variant availability
     for (const cartItem of cart) {
       if (!cartItem.product.is_available) {
         await transaction.rollback();
@@ -654,12 +656,37 @@ export const placeOrder = async (req, res) => {
           message: `Product "${cartItem.product.name}" is no longer available`,
         });
       }
-      
-      if (cartItem.product.stock < cartItem.quantity) {
+
+      let availableStock = cartItem.product.stock;
+      let variantIndexResolved = null;
+      if (typeof cartItem.variantIndex === "number") {
+        variantIndexResolved = cartItem.variantIndex;
+      } else if (typeof cartItem.variantIndex === "string") {
+        const parsed = parseInt(cartItem.variantIndex);
+        if (!Number.isNaN(parsed)) variantIndexResolved = parsed;
+      } else if (cartItem.variantLabel) {
+        const variantsTmp = Array.isArray(cartItem.product.variants) ? cartItem.product.variants : [];
+        const foundIdx = variantsTmp.findIndex(v => v?.label == cartItem.variantLabel);
+        if (foundIdx >= 0) variantIndexResolved = foundIdx;
+      }
+      if (variantIndexResolved !== null) {
+        const variants = Array.isArray(cartItem.product.variants) ? cartItem.product.variants : [];
+        const variant = variants[variantIndexResolved];
+        if (!variant) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Selected variant not found for "${cartItem.product.name}"`,
+          });
+        }
+        availableStock = parseInt(variant.stock ?? 0);
+      }
+
+      if (availableStock < cartItem.quantity) {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for "${cartItem.product.name}". Only ${cartItem.product.stock} available`,
+          message: `Insufficient stock for "${cartItem.product.name}". Only ${availableStock} available`,
         });
       }
     }
@@ -668,7 +695,73 @@ export const placeOrder = async (req, res) => {
     const subtotal = cart.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
     const shippingCost = 0;
     const tax = 0;
-    const totalAmount = subtotal + shippingCost + tax;
+    
+    // Apply coupon if provided
+    let appliedCouponCode = null;
+    let couponDiscount = 0;
+    if (couponCode) {
+      const normalized = String(couponCode).toUpperCase().trim();
+      const coupon = await Coupon.findOne({ where: { code: normalized, is_active: true }, transaction });
+      if (!coupon) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Invalid or inactive coupon" });
+      }
+      const now = new Date();
+      if (coupon.start_date && now < new Date(coupon.start_date)) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Coupon not started yet" });
+      }
+      if (coupon.end_date && now > new Date(coupon.end_date)) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Coupon expired" });
+      }
+      if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Coupon usage limit reached" });
+      }
+      if (Array.isArray(coupon.user_ids) && coupon.user_ids.length && !coupon.user_ids.includes(userId)) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Coupon not allowed for this user" });
+      }
+      if (coupon.per_user_limit) {
+        const usedCount = await Order.count({ where: { userId, couponCode: normalized }, transaction });
+        if (usedCount >= coupon.per_user_limit) {
+          await transaction.rollback();
+          return res.status(400).json({ success: false, message: "Coupon per-user limit reached" });
+        }
+      }
+      if (parseFloat(coupon.min_subtotal || 0) > subtotal) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: `Minimum order amount ${coupon.min_subtotal} not met` });
+      }
+      // Eligible subtotal based on scope
+      let eligibleSubtotal = subtotal;
+      if (coupon.scope === "product" && Array.isArray(coupon.product_ids) && coupon.product_ids.length) {
+        eligibleSubtotal = cart
+          .filter(ci => coupon.product_ids.includes(ci.productId))
+          .reduce((s, ci) => s + parseFloat(ci.totalPrice), 0);
+      } else if (coupon.scope === "category" && Array.isArray(coupon.category_list) && coupon.category_list.length) {
+        eligibleSubtotal = cart
+          .filter(ci => coupon.category_list.includes(ci.product.category))
+          .reduce((s, ci) => s + parseFloat(ci.totalPrice), 0);
+      } else if (coupon.scope === "user") {
+        eligibleSubtotal = subtotal; // user scope already verified
+      }
+      if (eligibleSubtotal <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: "Coupon not applicable to selected items" });
+      }
+      if (coupon.discount_type === "percentage") {
+        couponDiscount = (eligibleSubtotal * parseFloat(coupon.discount_value)) / 100;
+        if (coupon.max_discount) {
+          couponDiscount = Math.min(couponDiscount, parseFloat(coupon.max_discount));
+        }
+      } else {
+        couponDiscount = Math.min(parseFloat(coupon.discount_value), eligibleSubtotal);
+      }
+      appliedCouponCode = normalized;
+    }
+    const totalAmount = Math.max(0, subtotal - couponDiscount + shippingCost + tax);
 
     // Generate order number
     const orderNumber = `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -695,6 +788,8 @@ export const placeOrder = async (req, res) => {
       shippingCost,
       tax,
       totalAmount,
+      couponCode: appliedCouponCode,
+      couponDiscount,
       firstName: checkoutSession.firstName,
       lastName: checkoutSession.lastName,
       email: checkoutSession.email,
@@ -718,21 +813,62 @@ billingAddress: checkoutSession.billingAddress || checkoutSession.shippingAddres
         productName: cartItem.product.name,
         productImage: cartItem.product.featured_image,
         productCategory: cartItem.product.category,
+        variantLabel: cartItem.variantLabel || null,
+        variantImage: cartItem.variantImage || null,
       }, { transaction });
 
-      // Update product stock
-      await Product.update(
-        { 
-          stock: sequelize.literal(`stock - ${cartItem.quantity}`),
-          views: sequelize.literal('views + 1')
-        },
-        { 
-          where: { id: cartItem.productId },
-          transaction 
+      // Update product/variant stock
+      let variantIndexResolved = null;
+      if (typeof cartItem.variantIndex === "number") {
+        variantIndexResolved = cartItem.variantIndex;
+      } else if (typeof cartItem.variantIndex === "string") {
+        const parsed = parseInt(cartItem.variantIndex);
+        if (!Number.isNaN(parsed)) variantIndexResolved = parsed;
+      } else if (cartItem.variantLabel) {
+        const variantsTmp = Array.isArray(cartItem.product.variants) ? cartItem.product.variants : [];
+        const foundIdx = variantsTmp.findIndex(v => v?.label == cartItem.variantLabel);
+        if (foundIdx >= 0) variantIndexResolved = foundIdx;
+      }
+      if (variantIndexResolved !== null) {
+        const productRow = await Product.findByPk(cartItem.productId, { transaction });
+        const variants = Array.isArray(productRow.variants) ? productRow.variants : [];
+        const idx = variantIndexResolved;
+        if (variants[idx]) {
+          const currentStock = parseInt(variants[idx].stock ?? 0);
+          const newStock = Math.max(0, currentStock - cartItem.quantity);
+          const newVariants = variants.map((v, i) => {
+            if (i === idx) {
+              return {
+                ...v,
+                stock: newStock,
+              };
+            }
+            return { ...v };
+          });
+          const totalStock = newVariants.reduce((sum, v) => sum + parseInt(v?.stock ?? 0), 0);
+          await productRow.update({ variants: newVariants, stock: totalStock, views: sequelize.literal('views + 1') }, { transaction });
         }
-      );
+      } else {
+        await Product.update(
+          { 
+            stock: sequelize.literal(`stock - ${cartItem.quantity}`),
+            views: sequelize.literal('views + 1')
+          },
+          { 
+            where: { id: cartItem.productId },
+            transaction 
+          }
+        );
+      }
     }
 
+    // Increment coupon usage count if applied
+    if (appliedCouponCode) {
+      await Coupon.update(
+        { usage_count: sequelize.literal("usage_count + 1") },
+        { where: { code: appliedCouponCode }, transaction }
+      );
+    }
     // Clear user's cart
     await Cart.destroy({
       where: { userId },

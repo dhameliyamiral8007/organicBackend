@@ -55,6 +55,14 @@ const OrderItem = sequelize.define("OrderItem", {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  variantLabel: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  variantImage: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   tableName: "order_items",

@@ -19,6 +19,13 @@ const Product = sequelize.define("Product", {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  subtitle: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    validate: {
+      len: [0, 255],
+    },
+  },
   price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
@@ -40,6 +47,25 @@ const Product = sequelize.define("Product", {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  manufactured_by: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  marketed_by: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  color: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  form: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    validate: {
+      isIn: [["powder", "liquid", "granules", "tablet", "capsule", "other"]],
+    },
+  },
   stock: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -47,6 +73,12 @@ const Product = sequelize.define("Product", {
     validate: {
       min: 0,
     },
+  },
+  variants: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: [],
+    comment: "Array of variant objects: {label, price, stock, image}",
   },
   images: {
     type: DataTypes.JSON,

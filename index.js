@@ -11,6 +11,7 @@ import "./models/Contact.js";
 import "./models/Media.js";
 import "./models/UserForm.js";
 import "./models/CheckoutSession.js";
+import "./models/Coupon.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -23,6 +24,7 @@ import contactRoutes from "./routes/contactRoutes.js";
 import mediaRoutes from "./routes/mediaRoutes.js";
 import userFormRoutes from "./routes/userFormRoutes.js";
 import ensureUploadsDir from "./middleware/upload.js";
+import couponRoutes from "./routes/couponRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -62,6 +64,7 @@ app.use("/api/checkout", checkoutRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/user-forms", userFormRoutes);
+app.use("/api", couponRoutes);
 
 // 404 handler
 app.use((req, res) => {

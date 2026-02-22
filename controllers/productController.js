@@ -17,6 +17,12 @@ export const validateProduct = [
     .isLength({ max: 2000 })
     .withMessage("Description must be less than 2000 characters"),
   
+  body("subtitle")
+    .optional()
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage("Subtitle must be less than 255 characters"),
+  
   body("price")
     .isFloat({ min: 0 })
     .withMessage("Price must be a positive number"),
@@ -30,6 +36,29 @@ export const validateProduct = [
     .trim()
     .isLength({ max: 100 })
     .withMessage("Subcategory must be less than 100 characters"),
+  
+  body("manufacturedBy")
+    .optional()
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage("Manufactured By must be less than 255 characters"),
+  
+  body("marketedBy")
+    .optional()
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage("Marketed By must be less than 255 characters"),
+  
+  body("color")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("Color must be less than 100 characters"),
+  
+  body("form")
+    .optional()
+    .isIn(["powder", "liquid", "granules", "tablet", "capsule", "other"])
+    .withMessage("Invalid form"),
   
   body("stock")
     .isInt({ min: 0 })
@@ -109,6 +138,27 @@ export const validateProduct = [
     .optional()
     .isFloat({ min: 0, max: 100 })
     .withMessage("Discount must be between 0 and 100"),
+  
+  body("variants")
+    .optional()
+    .custom((value) => {
+      let parsed = value;
+      if (typeof value === "string") {
+        try {
+          parsed = JSON.parse(value || "[]");
+        } catch {
+          return false;
+        }
+      }
+      if (!Array.isArray(parsed)) return false;
+      for (const v of parsed) {
+        if (typeof v !== "object") return false;
+        if (!("label" in v)) return false;
+        if (!("price" in v)) return false;
+      }
+      return true;
+    })
+    .withMessage("Variants must be an array of {label, price, stock?, imageIndex?}"),
 ];
 
 export const createProduct = async (req, res) => {
@@ -125,9 +175,14 @@ export const createProduct = async (req, res) => {
     const {
       name,
       description,
+      subtitle,
       price,
       category,
       subcategory,
+      manufacturedBy,
+      marketedBy,
+      color,
+      form,
       stock,
       isOrganic,
       isAvailable,
@@ -138,6 +193,7 @@ export const createProduct = async (req, res) => {
       weight,
       unit,
       discount,
+      variants,
     } = req.body;
 
     // Parse form-data values
@@ -176,11 +232,16 @@ export const createProduct = async (req, res) => {
 
     let uploadedImages = [];
     let featuredImage = null;
+    let uploadedVariantImages = [];
 
-    if (req.files && req.files.length > 0) {
+    const filesIsArray = Array.isArray(req.files);
+    const imagesFiles = filesIsArray ? req.files : (req.files?.images || []);
+    const variantImagesFiles = filesIsArray ? [] : (req.files?.variantImages || []);
+
+    if (imagesFiles && imagesFiles.length > 0) {
       try {
         uploadedImages = await uploadMultipleImages(
-          req.files.map((file) => file.buffer),
+          imagesFiles.map((file) => file.buffer),
           "products"
         );
 
@@ -196,12 +257,58 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    if (variantImagesFiles && variantImagesFiles.length > 0) {
+      try {
+        uploadedVariantImages = await uploadMultipleImages(
+          variantImagesFiles.map((file) => file.buffer),
+          "products/variants"
+        );
+      } catch (uploadError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload variant images",
+          error: uploadError.message,
+        });
+      }
+    }
+
+    let parsedVariants = [];
+    try {
+      if (variants) {
+        parsedVariants = typeof variants === "string" ? JSON.parse(variants) : variants;
+      }
+    } catch (e) {
+      parsedVariants = [];
+    }
+
+    if (Array.isArray(parsedVariants) && uploadedVariantImages.length > 0) {
+      parsedVariants = parsedVariants.map((v) => {
+        if (typeof v.imageIndex === "number" && uploadedVariantImages[v.imageIndex]) {
+          const img = uploadedVariantImages[v.imageIndex];
+          return {
+            ...v,
+            image: {
+              url: getOptimizedUrl(img.public_id),
+              publicId: img.public_id,
+              secureUrl: img.secure_url,
+            },
+          };
+        }
+        return v;
+      });
+    }
+
     const product = await Product.create({
       name,
       description,
+      subtitle,
       price,
       category,
       subcategory,
+      manufactured_by: manufacturedBy,
+      marketed_by: marketedBy,
+      color,
+      form,
       stock,
       images: uploadedImages.map((img) => ({
         url: getOptimizedUrl(img.public_id),
@@ -215,6 +322,7 @@ export const createProduct = async (req, res) => {
       tags: parsedTags || [],
       key_features: parsedKeyFeatures || [],
       nutritional_info: parsedNutritionalInfo || {},
+      variants: parsedVariants || [],
       weight,
       unit: unit || "pcs",
       discount: discount || 0,
@@ -351,10 +459,14 @@ export const updateProduct = async (req, res) => {
 
     const updateData = { ...req.body, updated_by: req.admin.id };
 
-    if (req.files && req.files.length > 0) {
+    const filesIsArray = Array.isArray(req.files);
+    const imagesFiles = filesIsArray ? req.files : (req.files?.images || []);
+    const variantImagesFiles = filesIsArray ? [] : (req.files?.variantImages || []);
+
+    if (imagesFiles && imagesFiles.length > 0) {
       try {
         const newImages = await uploadMultipleImages(
-          req.files.map((file) => file.buffer),
+          imagesFiles.map((file) => file.buffer),
           "products"
         );
 
@@ -380,6 +492,47 @@ export const updateProduct = async (req, res) => {
           error: uploadError.message,
         });
       }
+    }
+
+    if (variantImagesFiles && variantImagesFiles.length > 0) {
+      try {
+        const newVariantImages = await uploadMultipleImages(
+          variantImagesFiles.map((file) => file.buffer),
+          "products/variants"
+        );
+
+        let existingVariants = Array.isArray(product.variants) ? product.variants : [];
+        const incomingVariants = updateData.variants
+          ? (typeof updateData.variants === "string" ? JSON.parse(updateData.variants) : updateData.variants)
+          : existingVariants;
+
+        const updatedVariants = incomingVariants.map((v) => {
+          if (typeof v.imageIndex === "number" && newVariantImages[v.imageIndex]) {
+            const img = newVariantImages[v.imageIndex];
+            return {
+              ...v,
+              image: {
+                url: getOptimizedUrl(img.public_id),
+                publicId: img.public_id,
+                secureUrl: img.secure_url,
+              },
+            };
+          }
+          return v;
+        });
+
+        updateData.variants = updatedVariants;
+      } catch (uploadError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload new variant images",
+          error: uploadError.message,
+        });
+      }
+    } else if (updateData.variants) {
+      updateData.variants = typeof updateData.variants === "string"
+        ? JSON.parse(updateData.variants)
+        : updateData.variants;
     }
 
     await product.update(updateData);

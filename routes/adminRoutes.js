@@ -16,5 +16,6 @@ router.post("/login", validateAdminLogin, adminController.login);
 // Protected admin routes
 router.get("/profile", authenticateAdmin, adminController.getProfile);
 router.put("/profile", authenticateAdmin, validateAdminUpdate, adminController.updateProfile);
+router.post("/db/sync", authenticateAdmin, adminController.syncDatabase);
 
 export default router;

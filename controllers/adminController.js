@@ -1,4 +1,5 @@
 import userService from "../services/userService.js";
+import { sequelize } from "../config/sequelize.js";
 import { validationResult } from "express-validator";
 
 class AdminController {
@@ -96,6 +97,25 @@ class AdminController {
       res.status(400).json({
         success: false,
         message: error.message,
+      });
+    }
+  }
+
+  async syncDatabase(req, res) {
+    try {
+      const result = await sequelize.sync({ alter: true });
+      res.status(200).json({
+        success: true,
+        message: "Database synchronized successfully",
+        data: {
+          dialect: result.getDialect ? result.getDialect() : "postgres",
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to synchronize database",
+        error: error.message,
       });
     }
   }

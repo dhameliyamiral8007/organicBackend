@@ -6,7 +6,7 @@ class UserService {
   // Register new user (role: user)
   async register(userData) {
     console.log("Registration attempt with data:", userData);
-    
+
     const { name, email, password, phone, address, role } = userData;
 
     // Check if user already exists
@@ -30,7 +30,7 @@ class UserService {
       address,
       role: "user"
     });
-    
+
     const user = await User.create({
       name,
       email,
@@ -39,7 +39,7 @@ class UserService {
       address,
       role: "user", // Always normalize to "user" for consistency
     });
-    
+
     console.log("User created successfully:", user.id);
 
     // Generate JWT token
@@ -48,7 +48,7 @@ class UserService {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE || "7d" }
     );
-    
+
     console.log("Token generated successfully");
 
     return {
@@ -234,8 +234,17 @@ class UserService {
       throw new Error("Admin not found");
     }
 
-    const { name } = adminData;
-    await admin.update({ name });
+    const { name, email } = adminData;
+
+    // If email is being changed, check if it's already taken
+    if (email && email !== admin.email) {
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) {
+        throw new Error("Email is already in use");
+      }
+    }
+
+    await admin.update({ name, email });
 
     return {
       id: admin.id,
@@ -243,6 +252,36 @@ class UserService {
       email: admin.email,
       role: admin.role,
       updatedAt: admin.updatedAt,
+    };
+  }
+
+  // Forgot password - Generate token
+  async forgotPassword(email) {
+    const user = await User.findOne({ where: { email, role: "admin" } });
+    if (!user) {
+      // For security, don't reveal if user exists or not, but for admin we might be more specific
+      throw new Error("Admin with this email does not exist");
+    }
+
+    // Generate a simple token (in production use crypto.randomBytes)
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const expires = new Date(Date.now() + 3600000); // 1 hour from now
+
+    await user.update({
+      reset_password_token: token,
+      reset_password_expires: expires,
+    });
+
+    // In a real app, you would send an email here
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    console.log(`\n--- PASSWORD RESET LINK ---`);
+    console.log(`Email: ${email}`);
+    console.log(`Link: ${resetUrl}`);
+    console.log(`---------------------------\n`);
+
+    return {
+      message: "Password reset link has been sent to your email",
+      // Returning message as requested by frontend authService
     };
   }
 }

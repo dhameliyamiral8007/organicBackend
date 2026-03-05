@@ -96,4 +96,9 @@ export const validateAdminUpdate = [
     .trim()
     .isLength({ min: 2, max: 100 })
     .withMessage("Name must be between 2 and 100 characters"),
+  body("email")
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage("Please provide a valid email"),
 ];

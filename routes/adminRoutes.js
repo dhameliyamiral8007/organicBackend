@@ -13,6 +13,8 @@ const router = express.Router();
 router.post("/register", validateAdminRegister, adminController.register);
 router.post("/login", validateAdminLogin, adminController.login);
 router.post("/forgot-password", adminController.forgotPassword);
+router.post("/verify-otp", adminController.verifyOTP);
+router.post("/reset-password", adminController.resetPassword);
 
 // Protected admin routes
 router.get("/profile", authenticateAdmin, adminController.getProfile);

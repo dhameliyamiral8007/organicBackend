@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import mailService from "./mailService.js";
 
 class UserService {
   // Register new user (role: user)
@@ -255,33 +256,82 @@ class UserService {
     };
   }
 
-  // Forgot password - Generate token
-  async forgotPassword(email) {
-    const user = await User.findOne({ where: { email, role: "admin" } });
+  // Forgot password - Generate OTP and send email
+  async forgotPassword(email, role = "user") {
+    // Check if user/admin exists
+    const user = await User.findOne({ where: { email, role } });
     if (!user) {
-      // For security, don't reveal if user exists or not, but for admin we might be more specific
-      throw new Error("Admin with this email does not exist");
+      throw new Error(`${role.charAt(0).toUpperCase() + role.slice(1)} with this email does not exist`);
     }
 
-    // Generate a simple token (in production use crypto.randomBytes)
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const expires = new Date(Date.now() + 3600000); // 1 hour from now
+    // Generate a 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
     await user.update({
-      reset_password_token: token,
+      reset_password_token: otp,
       reset_password_expires: expires,
     });
 
-    // In a real app, you would send an email here
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-    console.log(`\n--- PASSWORD RESET LINK ---`);
-    console.log(`Email: ${email}`);
-    console.log(`Link: ${resetUrl}`);
-    console.log(`---------------------------\n`);
+    // Send email
+    await mailService.sendOTPEmail(email, otp);
 
     return {
-      message: "Password reset link has been sent to your email",
-      // Returning message as requested by frontend authService
+      message: "OTP has been sent to your email",
+    };
+  }
+
+  // Verify OTP
+  async verifyOTP(email, otp, role = "user") {
+    const user = await User.findOne({ where: { email, role } });
+    if (!user) {
+      throw new Error(`${role.charAt(0).toUpperCase() + role.slice(1)} not found`);
+    }
+
+    if (!user.reset_password_token || user.reset_password_token !== otp) {
+      throw new Error("Invalid OTP");
+    }
+
+    if (new Date() > user.reset_password_expires) {
+      throw new Error("OTP has expired");
+    }
+
+    return {
+      success: true,
+      message: "OTP verified successfully",
+    };
+  }
+
+  // Reset password
+  async resetPassword(email, otp, newPassword, role = "user") {
+    const user = await User.findOne({ where: { email, role } });
+    if (!user) {
+      throw new Error(`${role.charAt(0).toUpperCase() + role.slice(1)} not found`);
+    }
+
+    // Verify OTP again for security
+    if (!user.reset_password_token || user.reset_password_token !== otp) {
+      throw new Error("Invalid or expired OTP");
+    }
+
+    if (new Date() > user.reset_password_expires) {
+      throw new Error("OTP has expired");
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password and clear OTP fields
+    await user.update({
+      password: hashedPassword,
+      reset_password_token: null,
+      reset_password_expires: null,
+    });
+
+    return {
+      success: true,
+      message: "Password has been reset successfully",
     };
   }
 }

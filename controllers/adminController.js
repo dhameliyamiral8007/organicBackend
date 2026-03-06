@@ -112,7 +112,55 @@ class AdminController {
         });
       }
 
-      const result = await userService.forgotPassword(email);
+      const result = await userService.forgotPassword(email, "admin");
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  // Verify OTP
+  async verifyOTP(req, res) {
+    try {
+      const { email, otp } = req.body;
+      if (!email || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Email and OTP are required",
+        });
+      }
+
+      const result = await userService.verifyOTP(email, otp, "admin");
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  // Reset password
+  async resetPassword(req, res) {
+    try {
+      const { email, otp, newPassword } = req.body;
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Email, OTP and new password are required",
+        });
+      }
+
+      const result = await userService.resetPassword(email, otp, newPassword, "admin");
       res.status(200).json({
         success: true,
         message: result.message,

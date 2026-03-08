@@ -1,6 +1,8 @@
+import "dotenv/config";
 import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import cors from "cors";
-import dotenv from "dotenv";
 import { sequelize } from "./config/sequelize.js";
 import "./models/User.js";
 import "./models/Product.js";
@@ -25,15 +27,51 @@ import mediaRoutes from "./routes/mediaRoutes.js";
 import userFormRoutes from "./routes/userFormRoutes.js";
 import ensureUploadsDir from "./middleware/upload.js";
 import couponRoutes from "./routes/couponRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 
-// Load environment variables
-dotenv.config();
+// Load environment variables removed from here as it's now at the top
 
 const app = express();
+const httpServer = createServer(app);
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+  "http://localhost:8080",
+  "http://localhost:3000"
+].filter(Boolean);
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+});
+
 const PORT = process.env.PORT || 3000;
 
+// Socket.io connection logic
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  socket.on("join_order", (orderId) => {
+    socket.join(`order_${orderId}`);
+    console.log(`User joined order room: order_${orderId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+// Make io accessible to routes
+app.set("io", io);
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(ensureUploadsDir);
@@ -65,6 +103,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/user-forms", userFormRoutes);
 app.use("/api", couponRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -93,7 +132,7 @@ async function startServer() {
     console.log("✅ Connected to PostgreSQL via Sequelize");
 
     // Start listening
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
     });

@@ -14,6 +14,8 @@ import "./models/Media.js";
 import "./models/UserForm.js";
 import "./models/CheckoutSession.js";
 import "./models/Coupon.js";
+import "./models/Subscriber.js";
+import "./models/Review.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -28,6 +30,8 @@ import userFormRoutes from "./routes/userFormRoutes.js";
 import ensureUploadsDir from "./middleware/upload.js";
 import couponRoutes from "./routes/couponRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import subscriberRoutes from "./routes/subscriberRoutes.js";
+import reviewRoutes from "./routes/reviewRoutes.js";
 
 // Load environment variables removed from here as it's now at the top
 
@@ -104,6 +108,8 @@ app.use("/api/media", mediaRoutes);
 app.use("/api/user-forms", userFormRoutes);
 app.use("/api", couponRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/subscribers", subscriberRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // 404 handler
 app.use((req, res) => {

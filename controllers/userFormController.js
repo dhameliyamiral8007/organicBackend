@@ -45,6 +45,31 @@ export const validateUserForm = [
     .optional()
     .isIn(["low", "medium", "high", "urgent"])
     .withMessage("Invalid priority"),
+  
+  body("inquiryType")
+    .optional()
+    .isIn([
+      "Product Information",
+      "Purchase Inquiry",
+      "Bulk Order / Distributor Inquiry",
+      "Farming Guidance",
+      "Product Availability",
+      "Partnership / Business Inquiry",
+      "Complaint / Support",
+      "Other"
+    ])
+    .withMessage("Invalid inquiry type"),
+  
+  body("productInterestedIn")
+    .optional()
+    .isIn([
+      "Nisarg Poshan",
+      "Nisarg Poshan – Vegetable",
+      "Nisarg Poshan – Flower",
+      "Nisarg Shakti",
+      "Not Sure / Need Guidance"
+    ])
+    .withMessage("Invalid product selection"),
 ];
 
 // User: Submit form
@@ -59,7 +84,17 @@ export const submitUserForm = async (req, res) => {
       });
     }
 
-    const { name, email, phone, subject, message, category = "general", priority = "medium" } = req.body;
+    const { 
+      name, 
+      email, 
+      phone, 
+      subject, 
+      message, 
+      category = "general", 
+      priority = "medium",
+      inquiryType,
+      productInterestedIn
+    } = req.body;
     
     // Get user ID if authenticated, otherwise null
     const userId = req.user ? req.user.id : null;
@@ -77,6 +112,8 @@ export const submitUserForm = async (req, res) => {
       message,
       category,
       priority,
+      inquiryType,
+      productInterestedIn,
       ipAddress,
       userAgent,
       metadata: {
@@ -96,6 +133,8 @@ export const submitUserForm = async (req, res) => {
         category: userForm.category,
         priority: userForm.priority,
         status: userForm.status,
+        inquiryType: userForm.inquiryType,
+        productInterestedIn: userForm.productInterestedIn,
         createdAt: userForm.createdAt,
       },
     });
@@ -141,8 +180,14 @@ export const getAllUserForms = async (req, res) => {
         { email: { [Op.like]: `%${search}%` } },
         { subject: { [Op.like]: `%${search}%` } },
         { message: { [Op.like]: `%${search}%` } },
+        { inquiryType: { [Op.like]: `%${search}%` } },
+        { productInterestedIn: { [Op.like]: `%${search}%` } },
       ];
     }
+
+    const { inquiryType = "", productInterestedIn = "" } = req.query;
+    if (inquiryType) whereClause.inquiryType = inquiryType;
+    if (productInterestedIn) whereClause.productInterestedIn = productInterestedIn;
 
     const { count, rows: userForms } = await UserForm.findAndCountAll({
       where: whereClause,
@@ -397,6 +442,24 @@ export const getUserFormStats = async (req, res) => {
       raw: true,
     });
 
+    const inquiryTypeStats = await UserForm.findAll({
+      attributes: [
+        'inquiryType',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['inquiryType'],
+      raw: true,
+    });
+
+    const productStats = await UserForm.findAll({
+      attributes: [
+        'productInterestedIn',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['productInterestedIn'],
+      raw: true,
+    });
+
     const categoryStats = await UserForm.findAll({
       attributes: [
         'category',
@@ -421,6 +484,8 @@ export const getUserFormStats = async (req, res) => {
         overview: stats[0],
         categoryBreakdown: categoryStats,
         priorityBreakdown: priorityStats,
+        inquiryTypeBreakdown: inquiryTypeStats,
+        productBreakdown: productStats,
       },
     });
   } catch (error) {

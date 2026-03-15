@@ -47,6 +47,29 @@ const UserForm = sequelize.define("UserForm", {
     allowNull: false,
     defaultValue: "general",
   },
+  inquiryType: {
+    type: DataTypes.ENUM(
+      "Product Information",
+      "Purchase Inquiry",
+      "Bulk Order / Distributor Inquiry",
+      "Farming Guidance",
+      "Product Availability",
+      "Partnership / Business Inquiry",
+      "Complaint / Support",
+      "Other"
+    ),
+    allowNull: true,
+  },
+  productInterestedIn: {
+    type: DataTypes.ENUM(
+      "Nisarg Poshan",
+      "Nisarg Poshan – Vegetable",
+      "Nisarg Poshan – Flower",
+      "Nisarg Shakti",
+      "Not Sure / Need Guidance"
+    ),
+    allowNull: true,
+  },
   priority: {
     type: DataTypes.ENUM("low", "medium", "high", "urgent"),
     allowNull: false,
@@ -107,6 +130,14 @@ const UserForm = sequelize.define("UserForm", {
     {
       name: "idx_user_forms_category",
       fields: ["category"],
+    },
+    {
+      name: "idx_user_forms_inquiry_type",
+      fields: ["inquiry_type"],
+    },
+    {
+      name: "idx_user_forms_product_interested_in",
+      fields: ["product_interested_in"],
     },
     {
       name: "idx_user_forms_priority",

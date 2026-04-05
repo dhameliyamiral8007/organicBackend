@@ -16,6 +16,8 @@ import "./models/CheckoutSession.js";
 import "./models/Coupon.js";
 import "./models/Subscriber.js";
 import "./models/Review.js";
+import "./models/Blog.js";
+import "./models/FAQ.js";
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -32,6 +34,8 @@ import couponRoutes from "./routes/couponRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import subscriberRoutes from "./routes/subscriberRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import faqRoutes from "./routes/faqRoutes.js";
 
 // Load environment variables removed from here as it's now at the top
 
@@ -111,6 +115,8 @@ app.use("/api", couponRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api", blogRoutes);
+app.use("/api", faqRoutes);
 
 // 404 handler
 app.use((req, res) => {

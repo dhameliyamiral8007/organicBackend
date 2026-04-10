@@ -46,7 +46,10 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:8080",
   "http://localhost:8081",
-  "http://localhost:3001"
+  "http://localhost:3001",
+  "https://organicfertilizer.vercel.app",
+  "https://organic-admin-ten.vercel.app"
+
 ].filter(Boolean);
 
 const io = new Server(httpServer, {

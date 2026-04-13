@@ -28,7 +28,7 @@ export const validateProduct = [
     .withMessage("Price must be a positive number"),
   
   body("category")
-    .isIn(["vegetables", "fruits", "grains", "dairy", "herbs", "organic", "natural", "other"])
+    .isIn(["vegetables", "fruits", "flower", "herbs", "organic", "natural", "other"])
     .withMessage("Invalid category"),
   
   body("subcategory")
@@ -201,6 +201,12 @@ export const createProduct = async (req, res) => {
     const parsedIsAvailable = isAvailable === 'true' || isAvailable === true;
     const parsedIsFeatured = isFeatured === 'true' || isFeatured === true;
     
+    // Parse numeric values
+    const parsedPrice = price ? parseFloat(price) : 0;
+    const parsedStock = stock ? parseInt(stock) : 0;
+    const parsedWeight = weight ? parseFloat(weight) : null;
+    const parsedDiscount = discount ? parseFloat(discount) : 0;
+
     let parsedTags = tags;
     let parsedKeyFeatures = keyFeatures;
     let parsedNutritionalInfo = nutritionalInfo;
@@ -302,14 +308,14 @@ export const createProduct = async (req, res) => {
       name,
       description,
       subtitle,
-      price,
+      price: parsedPrice,
       category,
       subcategory,
       manufactured_by: manufacturedBy,
       marketed_by: marketedBy,
       color,
       form,
-      stock,
+      stock: parsedStock,
       images: uploadedImages.map((img) => ({
         url: getOptimizedUrl(img.public_id),
         publicId: img.public_id,
@@ -323,11 +329,11 @@ export const createProduct = async (req, res) => {
       key_features: parsedKeyFeatures || [],
       nutritional_info: parsedNutritionalInfo || {},
       variants: parsedVariants || [],
-      weight,
+      weight: parsedWeight,
       unit: unit || "pcs",
-      discount: discount || 0,
-      created_by: req.admin.id,
-      updated_by: req.admin.id,
+      discount: parsedDiscount || 0,
+      created_by: parseInt(req.admin.id),
+      updated_by: parseInt(req.admin.id),
     });
 
     res.status(201).json({
@@ -534,6 +540,16 @@ export const updateProduct = async (req, res) => {
         ? JSON.parse(updateData.variants)
         : updateData.variants;
     }
+
+    // Parse numeric fields for consistency
+    if (updateData.price) updateData.price = parseFloat(updateData.price);
+    if (updateData.stock) updateData.stock = parseInt(updateData.stock);
+    if (updateData.weight) updateData.weight = parseFloat(updateData.weight);
+    if (updateData.discount) updateData.discount = parseFloat(updateData.discount);
+    if (updateData.updated_by) updateData.updated_by = parseInt(updateData.updated_by);
+    if (updateData.is_organic !== undefined) updateData.is_organic = updateData.is_organic === 'true' || updateData.is_organic === true;
+    if (updateData.is_available !== undefined) updateData.is_available = updateData.is_available === 'true' || updateData.is_available === true;
+    if (updateData.is_featured !== undefined) updateData.is_featured = updateData.is_featured === 'true' || updateData.is_featured === true;
 
     await product.update(updateData);
 

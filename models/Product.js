@@ -39,29 +39,48 @@ const Product = sequelize.define("Product", {
     validate: {
       notEmpty: true,
       isIn: [
-        ["vegetables", "fruits", "grains", "dairy", "herbs", "organic", "natural", "other"]
+        ["vegetables", "fruits", "flower", "herbs", "organic", "natural", "other"]
       ],
     },
   },
   subcategory: {
     type: DataTypes.STRING,
     allowNull: true,
+    set(value) {
+      this.setDataValue("subcategory", value === "" ? null : value);
+    },
   },
   manufactured_by: {
     type: DataTypes.STRING,
     allowNull: true,
+    set(value) {
+      this.setDataValue("manufactured_by", value === "" ? null : value);
+    },
   },
   marketed_by: {
     type: DataTypes.STRING,
     allowNull: true,
+    set(value) {
+      this.setDataValue("marketed_by", value === "" ? null : value);
+    },
   },
   color: {
     type: DataTypes.STRING,
     allowNull: true,
+    set(value) {
+      this.setDataValue("color", value === "" ? null : value);
+    },
   },
   form: {
     type: DataTypes.STRING,
     allowNull: true,
+    set(value) {
+      if (value === "") {
+        this.setDataValue("form", null);
+      } else {
+        this.setDataValue("form", value);
+      }
+    },
     validate: {
       isIn: [["powder", "liquid", "granules", "tablet", "capsule", "other"]],
     },

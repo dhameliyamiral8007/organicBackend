@@ -36,6 +36,7 @@ import subscriberRoutes from "./routes/subscriberRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
+import testimonialRoutes from "./routes/testimonialRoutes.js";
 
 // Load environment variables removed from here as it's now at the top
 
@@ -120,6 +121,7 @@ app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api", blogRoutes);
 app.use("/api", faqRoutes);
+app.use("/api", testimonialRoutes);
 
 // 404 handler
 app.use((req, res) => {

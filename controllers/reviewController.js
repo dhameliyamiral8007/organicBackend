@@ -51,25 +51,7 @@ const reviewController = {
           userId,
           rating,
           comment,
-          status: "approved",
-        },
-        { transaction: t }
-      );
-
-      // Update product rating and review count
-      const reviews = await Review.findAll({
-        where: { productId, status: "approved" },
-        transaction: t,
-      });
-
-      const reviewCount = reviews.length;
-      const averageRating =
-        reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviewCount;
-
-      await product.update(
-        {
-          rating: averageRating,
-          reviewCount: reviewCount,
+          status: "pending",
         },
         { transaction: t }
       );
@@ -78,7 +60,7 @@ const reviewController = {
 
       res.status(201).json({
         success: true,
-        message: "Review submitted successfully",
+        message: "Review submitted successfully and is awaiting admin approval",
         data: review,
       });
     } catch (error) {
@@ -100,7 +82,7 @@ const reviewController = {
       const { productId } = req.params;
 
       const reviews = await Review.findAll({
-        where: { productId, status: "approved" },
+        where: { productId, status: ["approved"] },
         include: [
           {
             model: User,
@@ -108,7 +90,7 @@ const reviewController = {
             attributes: ["id", "name"],
           },
         ],
-        order: [["created_at", "DESC"]],
+        order: [["createdAt", "DESC"]],
       });
 
       // Calculate breakdown
@@ -233,6 +215,74 @@ const reviewController = {
     } catch (error) {
       await t.rollback();
       console.error("Delete Review Error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error.message,
+      });
+    }
+  },
+  /**
+   * Update review status (Approve/Reject) - Admin only
+   */
+  updateReviewStatus: async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!["approved", "rejected"].includes(status)) {
+        await t.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Must be 'approved' or 'rejected'",
+        });
+      }
+
+      const review = await Review.findByPk(id);
+      if (!review) {
+        await t.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Review not found",
+        });
+      }
+
+      const oldStatus = review.status;
+      await review.update({ status }, { transaction: t });
+
+      // If status changed to approved, or was approved and changed to something else, update product rating
+      if (status === "approved" || oldStatus === "approved") {
+        const productId = review.productId;
+        const reviews = await Review.findAll({
+          where: { productId, status: "approved" },
+          transaction: t,
+        });
+
+        const reviewCount = reviews.length;
+        const averageRating = reviewCount > 0 
+          ? reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviewCount
+          : 0;
+
+        await Product.update(
+          {
+            rating: averageRating,
+            reviewCount: reviewCount,
+          },
+          { where: { id: productId }, transaction: t }
+        );
+      }
+
+      await t.commit();
+
+      res.status(200).json({
+        success: true,
+        message: `Review ${status} successfully`,
+        data: review,
+      });
+    } catch (error) {
+      await t.rollback();
+      console.error("Update Review Status Error:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",

@@ -39,6 +39,10 @@ const FAQ = sequelize.define("FAQ", {
     defaultValue: 0,
     comment: "For manual sorting of FAQs",
   },
+  image_url: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   created_by: {
     type: DataTypes.BIGINT,
     allowNull: true,

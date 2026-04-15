@@ -29,6 +29,10 @@ export const validateFAQ = [
   body("isActive")
     .optional()
     .toBoolean(),
+  
+  body("imageUrl")
+    .optional()
+    .trim(),
 ];
 
 // Admin: Create FAQ
@@ -43,7 +47,7 @@ export const createFAQ = async (req, res) => {
       });
     }
 
-    const { category, question, answer, orderIndex, isActive } = req.body;
+    const { category, question, answer, orderIndex, isActive, imageUrl } = req.body;
 
     const faq = await FAQ.create({
       category,
@@ -51,6 +55,7 @@ export const createFAQ = async (req, res) => {
       answer,
       order_index: orderIndex || 0,
       is_active: isActive !== undefined ? isActive : true,
+      image_url: imageUrl,
       created_by: req.admin.id,
     });
 
@@ -91,7 +96,7 @@ export const updateFAQ = async (req, res) => {
       });
     }
 
-    const { category, question, answer, orderIndex, isActive } = req.body;
+    const { category, question, answer, orderIndex, isActive, imageUrl } = req.body;
 
     await faq.update({
       category: category !== undefined ? category : faq.category,
@@ -99,6 +104,7 @@ export const updateFAQ = async (req, res) => {
       answer: answer !== undefined ? answer : faq.answer,
       order_index: orderIndex !== undefined ? orderIndex : faq.order_index,
       is_active: isActive !== undefined ? isActive : faq.is_active,
+      image_url: imageUrl !== undefined ? imageUrl : faq.image_url,
     });
 
     res.json({

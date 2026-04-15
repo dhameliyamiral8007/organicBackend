@@ -13,5 +13,6 @@ router.delete("/:id", authenticate, reviewController.deleteReview);
 
 // Admin routes
 router.get("/admin", authenticateAdmin, reviewController.getAdminReviews);
+router.put("/admin/:id/status", authenticateAdmin, reviewController.updateReviewStatus);
 
 export default router;

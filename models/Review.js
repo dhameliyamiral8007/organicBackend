@@ -40,7 +40,7 @@ const Review = sequelize.define("Review", {
   status: {
     type: DataTypes.ENUM("pending", "approved", "rejected"),
     allowNull: false,
-    defaultValue: "approved", // Default to approved for immediate visibility, can be changed later
+    defaultValue: "pending",
   },
 }, {
   timestamps: true,

@@ -18,6 +18,8 @@ import "./models/Subscriber.js";
 import "./models/Review.js";
 import "./models/Blog.js";
 import "./models/FAQ.js";
+import "./models/Setting.js";
+
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -37,6 +39,8 @@ import reviewRoutes from "./routes/reviewRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
 import testimonialRoutes from "./routes/testimonialRoutes.js";
+import settingRoutes from "./routes/settingRoutes.js";
+
 
 // Load environment variables removed from here as it's now at the top
 
@@ -122,6 +126,8 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api", blogRoutes);
 app.use("/api", faqRoutes);
 app.use("/api", testimonialRoutes);
+app.use("/api/settings", settingRoutes);
+
 
 // 404 handler
 app.use((req, res) => {

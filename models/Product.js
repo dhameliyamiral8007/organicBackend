@@ -130,6 +130,10 @@ const Product = sequelize.define("Product", {
     allowNull: true,
     defaultValue: [],
   },
+  application_method: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   nutritional_info: {
     type: DataTypes.JSON,
     allowNull: true,

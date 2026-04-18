@@ -159,6 +159,10 @@ export const validateProduct = [
       return true;
     })
     .withMessage("Variants must be an array of {label, price, stock?, imageIndex?}"),
+  
+  body("applicationMethod")
+    .optional()
+    .trim(),
 ];
 
 export const createProduct = async (req, res) => {
@@ -194,6 +198,7 @@ export const createProduct = async (req, res) => {
       unit,
       discount,
       variants,
+      applicationMethod,
     } = req.body;
 
     // Parse form-data values
@@ -329,6 +334,7 @@ export const createProduct = async (req, res) => {
       key_features: parsedKeyFeatures || [],
       nutritional_info: parsedNutritionalInfo || {},
       variants: parsedVariants || [],
+      application_method: applicationMethod,
       weight: parsedWeight,
       unit: unit || "pcs",
       discount: parsedDiscount || 0,
@@ -550,6 +556,10 @@ export const updateProduct = async (req, res) => {
     if (updateData.is_organic !== undefined) updateData.is_organic = updateData.is_organic === 'true' || updateData.is_organic === true;
     if (updateData.is_available !== undefined) updateData.is_available = updateData.is_available === 'true' || updateData.is_available === true;
     if (updateData.is_featured !== undefined) updateData.is_featured = updateData.is_featured === 'true' || updateData.is_featured === true;
+    
+    if (req.body.applicationMethod !== undefined) {
+      updateData.application_method = req.body.applicationMethod;
+    }
 
     await product.update(updateData);
 

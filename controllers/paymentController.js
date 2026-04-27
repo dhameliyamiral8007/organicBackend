@@ -85,7 +85,8 @@ export const verifyPayment = async (req, res) => {
         if (isAuthentic) {
             console.log("✅ Payment verified successfully");
 
-            const userId = req.user.id;
+            const userId = req.user ? req.user.id : (await Order.findByPk(orderId))?.userId;
+
 
             // Update the Database Order
             const dbOrder = await Order.findByPk(orderId);
@@ -104,11 +105,14 @@ export const verifyPayment = async (req, res) => {
             console.log(`Cart cleared for user ${userId}`);
 
             // Mark Checkout Session as completed
-            await CheckoutSession.update(
-                { isCompleted: true, currentStep: "completed" },
-                { where: { userId, isCompleted: false } }
-            );
+            if (userId) {
+                await CheckoutSession.update(
+                    { isCompleted: true, currentStep: "completed" },
+                    { where: { userId, isCompleted: false } }
+                );
+            }
             console.log(`Checkout session completed for user ${userId}`);
+
 
             const io = req.app.get("io");
             if (io) {

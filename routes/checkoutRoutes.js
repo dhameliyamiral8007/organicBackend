@@ -2,49 +2,44 @@ import express from "express";
 import {
   getCheckoutData,
   saveCustomerInfo,
-  savePhoneNumber,
-  saveCustomerDetails,
-  saveShippingAddress,
+  sendCheckoutOTP,
+  verifyCheckoutOTP,
+  saveCheckoutDetails,
   placeOrder,
   getOrderConfirmation,
   getCheckoutSession,
   getUserOrders,
-  validateCustomerInfo,
-  validatePhoneOnly,
-  validateCustomerDetails,
-  validateShippingAddress,
+  validateEmailOnly,
+  validateOTP,
 } from "../controllers/checkoutController.js";
 import { authenticateUser } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// All checkout routes require user authentication
-router.use(authenticateUser);
+// Get checkout data (cart + user info) - Still useful for logged in users
+router.get("/", authenticateUser, getCheckoutData);
 
-// Get checkout data (cart + user info)
-router.get("/", getCheckoutData);
-// Legacy: Save customer information (all at once)
-router.post("/customer-info", validateCustomerInfo, saveCustomerInfo);
+// Step 1: Send OTP to email
+router.post("/send-otp", validateEmailOnly, sendCheckoutOTP);
 
-// Step 1: Save phone number only
-router.post("/step1/phone", validatePhoneOnly, savePhoneNumber);
+// Step 2: Verify OTP
+router.post("/verify-otp", validateOTP, verifyCheckoutOTP);
 
-// Step 2: Save customer details (first name, last name, email)
-router.post("/step2/customer-details", validateCustomerDetails, saveCustomerDetails);
+// Step 3: Save details (Personal + Shipping)
+router.post("/save-details", saveCheckoutDetails);
 
-// Step 3: Save shipping address
-router.post("/step3/shipping-address", validateShippingAddress, saveShippingAddress);
-
-// Place order (Final step)
+// Step 4: Place order
 router.post("/place-order", placeOrder);
 
+
 // Get checkout session data
-router.get("/session", getCheckoutSession);
+router.get("/session/:id", getCheckoutSession);
 
-// Get user's orders
-router.get("/orders", getUserOrders);
+// Get user's orders (Requires login)
+router.get("/orders", authenticateUser, getUserOrders);
 
-// Get order confirmation
+// Get order confirmation (Public or by session)
 router.get("/confirmation/:orderNumber", getOrderConfirmation);
+
 
 export default router;

@@ -134,6 +134,7 @@ const Product = sequelize.define("Product", {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  
   nutritional_info: {
     type: DataTypes.JSON,
     allowNull: true,

@@ -10,7 +10,7 @@ const CheckoutSession = sequelize.define("CheckoutSession", {
   },
   userId: {
     type: DataTypes.BIGINT,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: "users",
       key: "id",
@@ -43,10 +43,23 @@ const CheckoutSession = sequelize.define("CheckoutSession", {
     type: DataTypes.JSON,
     allowNull: true,
   },
-  currentStep: {
-    type: DataTypes.ENUM("phone", "customer-details", "shipping-address", "payment", "completed"),
+  isEmailVerified: {
+    type: DataTypes.BOOLEAN,
     allowNull: false,
-    defaultValue: "phone",
+    defaultValue: false,
+  },
+  otp: {
+    type: DataTypes.STRING(10),
+    allowNull: true,
+  },
+  otpExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  currentStep: {
+    type: DataTypes.ENUM("email", "otp", "details", "payment", "completed"),
+    allowNull: false,
+    defaultValue: "email",
   },
   isCompleted: {
     type: DataTypes.BOOLEAN,
